@@ -1,8 +1,8 @@
 import streamlit as st
 from langchain_community.utilities import SQLDatabase
-from langchain_community.llms import Ollama
+from langchain_community import OllamaLLM
 from langchain_community.agent_toolkits import create_sql_agent
-from langchain.agents.agent_types import AgentType
+# from langchain.agents.agent_types import AgentType
 import pandas as pd
 import time
 import re
@@ -60,19 +60,19 @@ with st.sidebar:
                 st.session_state.table_names = st.session_state.db.get_usable_table_names()
                 
                 # Initialize LLM
-                llm = Ollama(model=model_name, temperature=0)
+                llm = OllamaLLM(model=model_name, temperature=0)
                 
                 # Create agent with the correct agent type
                 st.session_state.agent = create_sql_agent(
-                    llm=llm,
-                    db=st.session_state.db,
-                    verbose=True,
-                    agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                    handle_parsing_errors=True,
-                    max_iterations=max_iterations,  # Limit iterations to prevent long runs
-                    early_stopping_method="force",
-                    top_k=10
-                )
+    llm=llm,
+    db=st.session_state.db,
+    verbose=True,
+    handle_parsing_errors=True,
+    max_iterations=max_iterations,
+    early_stopping_method="force",
+    top_k=10
+)
+
                 
                 st.session_state.db_connected = True
                 st.success("Agent initialized successfully!")

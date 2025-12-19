@@ -1,7 +1,17 @@
 from langchain_community.utilities import SQLDatabase
 from langchain_community.llms import Ollama
 from langchain_community.agent_toolkits import create_sql_agent
-from langchain.agents.agent_types import AgentType
+
+SAFE_SQL_PROMPT = """
+You are an expert PostgreSQL SQL agent.
+
+RULES:
+- Generate ONLY SELECT queries
+- NEVER use INSERT, UPDATE, DELETE, DROP, ALTER
+- Use only tables and columns from the schema
+- If the question cannot be answered, say so clearly
+- After executing SQL, explain the result in simple language
+"""
 
 class SQLAgentService:
     def __init__(self, db_url: str, model_name: str, max_iterations: int = 5):
@@ -10,29 +20,41 @@ class SQLAgentService:
         self.max_iterations = max_iterations
         self.db = None
         self.agent = None
-        self.table_names = []
 
     def initialize(self):
         self.db = SQLDatabase.from_uri(self.db_url)
-        self.table_names = self.db.get_usable_table_names()
 
-        llm = Ollama(model=self.model_name, temperature=0)
+        llm = Ollama(
+            model=self.model_name,
+            temperature=0,
+            num_ctx=2048,
+            num_predict=256
+        )
+
+        schema_info = self.db.get_table_info()
+
+        system_prompt = f"""
+{SAFE_SQL_PROMPT}
+
+Database schema:
+{schema_info}
+"""
 
         self.agent = create_sql_agent(
             llm=llm,
             db=self.db,
+            prefix=system_prompt,
             verbose=True,
-            agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
             handle_parsing_errors=True,
             max_iterations=self.max_iterations,
             early_stopping_method="force",
             top_k=10
         )
 
-        return True
+    def run(self, question: str) -> str:
+        if not self.agent:
+            raise RuntimeError("Agent not initialized")
+        return self.agent.run(question)
 
-    def get_table_info(self):
-        try:
-            return self.db.get_table_info()
-        except:
-            return f"Available tables: {', '.join(self.table_names)}"
+    def get_schema(self) -> str:
+        return self.db.get_table_info()
